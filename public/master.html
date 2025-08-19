@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Occupation Manager (Master)</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- js-datepicker for clean date inputs -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/js-datepicker@5.18.2/dist/datepicker.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/js-datepicker@5.18.2/dist/datepicker.min.js"></script>
+
+    <style>
+        /* Custom Styles & Softer Color Palette */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Very light gray */
+            color: #475569; /* Slate-600 for base text */
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        /* Define custom pastel colors */
+        :root {
+            --sage-green: #86efac;  /* Green-300 */
+            --sage-hover: #4ade80;   /* Green-400 */
+            --secondary-accent: #67e8f9; /* Cyan-300 */
+            --secondary-hover: #22d3ee;  /* Cyan-400 */
+            --booked: #fecaca;         /* Red-200 */
+            --changeover: #fef08a;     /* Yellow-200 */
+            --available: #dcfce7;       /* Green-100 */
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: 160px repeat(12, 1fr);
+            gap: 8px;
+        }
+        .calendar-header {
+            background-color: #f1f5f9; /* Slate-100 */
+            padding: 8px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: 6px;
+            color: #475569;
+        }
+        .property-name {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            font-weight: 600;
+            background-color: #f8fafc;
+            padding: 12px 8px;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        .month-bubble {
+            background-color: #f1f5f9; /* Slate-100 */
+            padding: 4px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(20px, 1fr));
+            gap: 2px;
+        }
+        .day-cell {
+            background-color: #ffffff;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            border-radius: 4px;
+        }
+        .day-cell.booked {
+            background-color: var(--booked);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+         .day-cell.changeover {
+            background-color: var(--changeover);
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .day-cell.booked:hover, .day-cell.changeover:hover {
+            transform: scale(1.1);
+            z-index: 15;
+            border: 2px solid var(--sage-green);
+        }
+        .day-cell.available {
+             background-color: var(--available);
+        }
+        .day-cell .tooltip {
+            visibility: hidden;
+            width: max-content;
+            max-width: 250px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 20;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: pre-wrap;
+            font-size: 0.85rem;
+        }
+        .day-cell:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- CLIENT-SIDE ROLE CHECK: Redirects to login if not authenticated as 'master' -->
+    <script>
+        if (sessionStorage.getItem('accessRole') !== 'master') {
+            window.location.href = '/'; 
+        }
+    </script>
+
+    <div class="max-w-screen-xl mx-auto">
+        <header class="pb-6 border-b border-slate-200 mb-8">
+            <div class="flex items-baseline gap-4">
+                 <h1 class="text-3xl font-bold text-slate-700">Occupation Manager</h1>
+                 <span class="text-sm font-semibold text-green-700 bg-green-100 px-2 py-1 rounded-full">Master</span>
+            </div>
+             <button id="how-it-works-btn" class="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 mt-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                </svg>
+                How It Works
+            </button>
+        </header>
+
+        <!-- Initial Load Section - HIDDEN, logic moved to main app setup -->
+        <div id="initial-load-section" class="hidden"></div> 
+
+        <!-- Main Content (hidden until data is loaded) -->
+        <main id="main-content" class="hidden">
+            
+             <!-- Action Bar -->
+            <div class="bg-white p-4 rounded-lg shadow-sm mb-8 flex justify-end items-center gap-4">
+                 <button id="edit-properties-btn" class="bg-violet-300 text-violet-800 font-bold py-2 px-4 rounded-lg hover:bg-violet-400 hover:text-white transition duration-300 shadow-md">
+                    Edit Properties
+                </button>
+                <button id="logout-btn" class="bg-rose-400 text-white font-bold py-2 px-4 rounded-lg hover:bg-rose-500 transition duration-300 shadow-md">
+                    Logout
+                </button>
+            </div>
+
+            <!-- Booking Form -->
+            <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
+                <h2 class="text-xl font-bold text-slate-700 mb-4">Add New Booking</h2>
+                <form id="booking-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+                    <div>
+                        <label for="guest-name" class="block text-sm font-medium text-slate-600">Guest Name</label>
+                        <input type="text" id="guest-name" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-green-300 focus:ring-green-300 sm:text-sm" required>
+                    </div>
+                    <div>
+                        <label for="property" class="block text-sm font-medium text-slate-600">Property</label>
+                        <select id="property" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-green-300 focus:ring-green-300 sm:text-sm" required>
+                           <option value="">Select a property...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="arrival-date" class="block text-sm font-medium text-slate-600">Arrival Date</label>
+                        <input type="text" id="arrival-date" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm" required>
+                    </div>
+                    <div>
+                        <label for="departure-date" class="block text-sm font-medium text-slate-600">Departure Date</label>
+                        <input type="text" id="departure-date" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm" required>
+                    </div>
+                     <div class="md:col-span-2">
+                        <label for="contact-info" class="block text-sm font-medium text-slate-600">Contact Info (Hidden from viewers)</label>
+                        <input type="text" id="contact-info" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-green-300 focus:ring-green-300 sm:text-sm">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="notes" class="block text-sm font-medium text-slate-600">Notes</label>
+                        <textarea id="notes" rows="1" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-green-300 focus:ring-green-300 sm:text-sm"></textarea>
+                    </div>
+                    <div class="lg:col-span-4 flex justify-between items-center mt-4">
+                         <button type="submit" id="add-booking-btn" class="bg-green-400 text-white font-semibold py-2 px-6 rounded-md hover:bg-green-500 transition duration-300 disabled:opacity-50 shadow-md" disabled>Add Booking</button>
+                         <div id="conflict-warning" class="text-red-500 font-semibold hidden"></div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Calendar View -->
+            <div class="bg-white p-2 rounded-lg shadow-sm overflow-x-auto">
+                <div class="flex justify-between items-center mb-4 px-4 pt-4">
+                    <h2 class="text-xl font-bold text-slate-700">2025 Booking Calendar</h2>
+                    <p class="text-sm text-slate-500 italic">Click on a booked date to edit or delete the reservation.</p>
+                </div>
+                <div id="calendar-container">
+                    <!-- Calendar will be generated here by JavaScript -->
+                </div>
+            </div>
+
+        </main>
+        
+        <!-- How It Works Modal -->
+        <div id="how-it-works-modal" class="fixed inset-0 bg-slate-800 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-slate-800">How It Works</h3>
+                    <button id="close-how-it-works-btn" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+                </div>
+                <div class="text-slate-600 space-y-4">
+                    <p>This tool manages bookings via a database on Azure. All changes are saved instantly.</p>
+                    <div class="space-y-2">
+                        <h4 class="font-semibold">1. Getting Started:</h4>
+                        <p class="ml-4">&bull; Properties are managed via the "Edit Properties" button.</p>
+                        <p class="ml-4">&bull; Bookings are added via the form above or by clicking on booked dates to edit.</p>
+                    </div>
+                     <div class="space-y-2">
+                        <h4 class="font-semibold">2. Saving:</h4>
+                        <p class="ml-4">&bull; All your changes (adding, editing, deleting bookings) are **instantly** saved to the central database.</p>
+                    </div>
+                     <div class="space-y-2">
+                        <h4 class="font-semibold">3. Access:</h4>
+                        <p class="ml-4">&bull; This Master view allows full management. A separate Viewer-only page exists for read-only access.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Property Setup/Edit Modal -->
+        <div id="property-setup-modal" class="fixed inset-0 bg-slate-800 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <h3 id="property-modal-title" class="text-lg font-bold mb-4">Manual Property Setup</h3>
+                <p id="property-modal-subtitle" class="text-sm text-slate-600 mb-4">Enter your property names below, one per line.</p>
+                <form id="property-setup-form">
+                    <textarea id="property-names-input" class="w-full h-40 p-2 border border-slate-300 rounded-md focus:ring-green-300 focus:border-green-300"></textarea>
+                    <div class="mt-6 flex justify-end gap-4">
+                        <button type="button" id="cancel-property-setup-btn" class="bg-slate-300 text-slate-800 font-semibold py-2 px-4 rounded-md hover:bg-slate-400">Cancel</button>
+                        <button type="submit" id="submit-property-setup-btn" class="bg-teal-400 text-white font-semibold py-2 px-4 rounded-md hover:bg-teal-500">Finish Setup</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div id="edit-modal" class="fixed inset-0 bg-slate-800 bg-opacity-75 flex items-center justify-center hidden z-50 p-4 overflow-y-auto">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md my-8">
+                <h3 class="text-lg font-bold mb-4">Edit Booking</h3>
+                <form id="edit-booking-form">
+                     <input type="hidden" id="edit-booking-id">
+
+                    <div>
+                        <label for="edit-guest-name" class="block text-sm font-medium text-slate-600">Guest Name</label>
+                        <input type="text" id="edit-guest-name" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:ring-green-300 focus:border-green-300" required>
+                    </div>
+                     <div class="mt-4">
+                        <label class="block text-sm font-medium text-slate-600">Property</label>
+                        <p id="edit-property-name" class="mt-1 text-lg font-semibold text-slate-700"></p>
+                    </div>
+                    <div class="mt-4 grid grid-cols-2 gap-4">
+                        <div>
+                           <label for="edit-arrival-date" class="block text-sm font-medium text-slate-600">Arrival</label>
+                           <input type="text" id="edit-arrival-date" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm" required>
+                        </div>
+                        <div>
+                           <label for="edit-departure-date" class="block text-sm font-medium text-slate-600">Departure</label>
+                           <input type="text" id="edit-departure-date" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm" required>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label for="edit-contact-info" class="block text-sm font-medium text-slate-600">Contact Info</label>
+                        <input type="text" id="edit-contact-info" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-green-300 focus:ring-green-300 sm:text-sm">
+                    </div>
+                    <div class="mt-4">
+                        <label for="edit-notes" class="block text-sm font-medium text-slate-600">Notes</label>
+                        <textarea id="edit-notes" rows="3" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-green-300 focus:ring-green-300 sm:text-sm"></textarea>
+                    </div>
+
+                    <div id="edit-conflict-warning" class="text-red-500 font-semibold hidden mt-2"></div>
+                    <div class="mt-6 flex justify-between">
+                        <div>
+                            <button type="submit" id="save-edit-btn" class="bg-teal-400 text-white font-semibold py-2 px-4 rounded-md hover:bg-teal-500 disabled:opacity-50 shadow-md">Save Changes</button>
+                            <button type="button" id="cancel-edit-btn" class="ml-2 bg-slate-300 text-slate-800 font-semibold py-2 px-4 rounded-md hover:bg-slate-400 shadow-md">Cancel</button>
+                        </div>
+                        <button type="button" id="delete-booking-btn" class="bg-rose-400 text-white font-semibold py-2 px-4 rounded-md hover:bg-rose-500 shadow-md">Delete Booking</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- GLOBALS ---
+        let bookings = {}; // Stores bookings keyed by property name
+        let properties = []; // Array of property names
+        const YEAR = 2025;
+        
+        // --- DOM ELEMENTS ---
+        const initialLoadSection = document.getElementById('initial-load-section'); // Now hidden
+        const mainContent = document.getElementById('main-content');
+        const propertySelect = document.getElementById('property');
+        const bookingForm = document.getElementById('booking-form');
+        const conflictWarning = document.getElementById('conflict-warning');
+        const addBookingBtn = document.getElementById('add-booking-btn');
+        const calendarContainer = document.getElementById('calendar-container');
+        const editModal = document.getElementById('edit-modal');
+        const editForm = document.getElementById('edit-booking-form');
+        const cancelEditBtn = document.getElementById('cancel-edit-btn');
+        const deleteBookingBtn = document.getElementById('delete-booking-btn');
+        const saveEditBtn = document.getElementById('save-edit-btn');
+        const propertySetupModal = document.getElementById('property-setup-modal');
+        const propertySetupForm = document.getElementById('property-setup-form');
+        const cancelPropertySetupBtn = document.getElementById('cancel-property-setup-btn');
+        const editPropertiesBtn = document.getElementById('edit-properties-btn');
+        const howItWorksBtn = document.getElementById('how-it-works-btn');
+        const howItWorksModal = document.getElementById('how-it-works-modal');
+        const closeHowItWorksBtn = document.getElementById('close-how-it-works-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        
+        let arrivalPicker, departurePicker, editArrivalPicker, editDeparturePicker;
+        let isEditingProperties = false;
+
+        // --- EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', initializeApp); 
+        bookingForm.addEventListener('submit', handleAddBooking);
+        propertySelect.addEventListener('change', () => validateDates('add'));
+        cancelEditBtn.addEventListener('click', () => editModal.classList.add('hidden'));
+        editForm.addEventListener('submit', handleUpdateBooking);
+        deleteBookingBtn.addEventListener('click', handleDeleteBooking);
+        editPropertiesBtn.addEventListener('click', openPropertySetup);
+        cancelPropertySetupBtn.addEventListener('click', () => propertySetupModal.classList.add('hidden'));
+        propertySetupForm.addEventListener('submit', handlePropertySetup);
+        howItWorksBtn.addEventListener('click', () => howItWorksModal.classList.remove('hidden'));
+        closeHowItWorksBtn.addEventListener('click', () => howItWorksModal.classList.add('hidden'));
+        logoutBtn.addEventListener('click', handleLogout);
+
+
+        /**
+         * Initializes the application by loading data and setting up UI components.
+         */
+        async function initializeApp() {
+            await loadDataFromDatabase(); // Load data from Azure SQL via Functions
+            populatePropertyDropdown();
+            generateCalendar();
+            initializeDatePickers();
+            
+            mainContent.classList.remove('hidden'); // Show main content once data is loaded
+        }
+
+        /**
+         * Initializes the date pickers for arrival and departure dates.
+         */
+        function initializeDatePickers() {
+            // Remove existing pickers to prevent duplicates if called multiple times
+            if (arrivalPicker && typeof arrivalPicker.remove === 'function') arrivalPicker.remove();
+            if (departurePicker && typeof departurePicker.remove === 'function') departurePicker.remove();
+
+            const datePickerConfig = {
+                id: 1, // Unique ID for this datepicker instance
+                minDate: new Date(YEAR, 0, 1), // Start of the year
+                maxDate: new Date(YEAR, 11, 31), // End of the year
+                formatter: (input, date, instance) => {
+                    input.value = formatDate(date); // Format date to YYYY-MM-DD
+                },
+                onSelect: () => validateDates('add') // Re-validate dates on selection
+            };
+            arrivalPicker = datepicker('#arrival-date', datePickerConfig);
+            departurePicker = datepicker('#departure-date', { ...datePickerConfig });
+        }
+
+        /**
+         * Clears session storage and redirects to the login page.
+         */
+        function handleLogout() {
+            sessionStorage.removeItem('accessRole'); // Clear the stored role
+            window.location.href = '/'; // Redirect to login page
+        }
+
+        // --- DATABASE & DATA HANDLING ---
+        /**
+         * Loads properties and bookings data from the Azure Functions API.
+         */
+        async function loadDataFromDatabase() {
+            try {
+                // Fetch properties
+                const propertiesRes = await fetch('/api/GetProperties');
+                if (!propertiesRes.ok) {
+                    const errorText = await propertiesRes.text();
+                    throw new Error(`Failed to fetch properties: ${propertiesRes.status} ${propertiesRes.statusText} - ${errorText}`);
+                }
+                properties = await propertiesRes.json();
+
+                // Fetch bookings
+                const bookingsRes = await fetch('/api/GetBookings');
+                if (!bookingsRes.ok) {
+                    const errorText = await bookingsRes.text();
+                    throw new Error(`Failed to fetch bookings: ${bookingsRes.status} ${bookingsRes.statusText} - ${errorText}`);
+                }
+                const flatBookings = await bookingsRes.json();
+                
+                // Convert flat list of bookings into a property-keyed object for easier lookup
+                bookings = {};
+                flatBookings.forEach(b => {
+                    if (!bookings[b.property]) bookings[b.property] = [];
+                    bookings[b.property].push(b);
+                });
+
+                console.log("Data loaded from database successfully.");
+            } catch (error) {
+                console.error("Error loading data from database:", error);
+                // Display a user-friendly error message
+                alert("Could not load data from database. Please check your connection or try again later. Details: " + error.message);
+                mainContent.classList.add('hidden'); // Keep content hidden if load fails
+            }
+        }
+
+        // --- PROPERTY SETUP/EDIT ---
+        /**
+         * Opens the property setup/edit modal.
+         * @param {Event} event - The click event.
+         */
+        async function openPropertySetup(event) {
+            isEditingProperties = event.target.id === 'edit-properties-btn';
+            const title = document.getElementById('property-modal-title');
+            const subtitle = document.getElementById('property-modal-subtitle');
+            const submitBtn = document.getElementById('submit-property-setup-btn');
+            const propInput = document.getElementById('property-names-input');
+
+            if (isEditingProperties) {
+                title.textContent = "Edit Properties";
+                subtitle.textContent = "Add, remove, or rename properties below. WARNING: Removing a property with bookings will delete those bookings.";
+                submitBtn.textContent = "Save Changes";
+                propInput.value = properties.join('\n'); // Pre-fill with current properties
+            } else {
+                title.textContent = "Manual Property Setup";
+                subtitle.textContent = "Enter your property names below, one per line.";
+                propInput.value = ""; // Clear for new setup
+                submitBtn.textContent = "Finish Setup";
+            }
+            propertySetupModal.classList.remove('hidden'); // Show the modal
+        }
+        
+        /**
+         * Handles the submission of the property setup form, saving changes to the database.
+         * @param {Event} e - The form submission event.
+         */
+        async function handlePropertySetup(e) {
+            e.preventDefault();
+            const propInput = document.getElementById('property-names-input');
+            const newProperties = propInput.value.split('\n').map(p => p.trim()).filter(p => p);
+
+            if (newProperties.length === 0) {
+                alert("Please enter at least one property name.");
+                return;
+            }
+
+            // Client-side check for removed properties with existing bookings (for warning)
+            if (isEditingProperties) {
+                const removedProperties = properties.filter(p => !newProperties.includes(p));
+                let propertiesWithBookings = [];
+                removedProperties.forEach(prop => {
+                    if (bookings[prop] && bookings[prop].length > 0) {
+                        propertiesWithBookings.push(prop);
+                    }
+                });
+
+                if (propertiesWithBookings.length > 0) {
+                    if (!confirm(`Warning: The following properties have existing bookings that will be deleted from the database:\n\n- ${propertiesWithBookings.join('\n- ')}\n\nAre you sure you want to continue?`)) {
+                        return; // User cancelled
+                    }
+                }
+            }
+
+            try {
+                // Send new property list to the SaveProperties API
+                const response = await fetch('/api/SaveProperties', {
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ properties: newProperties })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to save properties.');
+                }
+
+                propertySetupModal.classList.add('hidden'); // Hide the modal
+                await initializeApp(); // Reload all data and refresh UI
+
+            } catch (error) {
+                console.error("Error saving properties:", error);
+                alert("Failed to save properties: " + error.message);
+            }
+        }
+
+        /**
+         * Populates the property dropdown in the booking form.
+         */
+        function populatePropertyDropdown() {
+            propertySelect.innerHTML = '<option value="">Select a property...</option>';
+            properties.forEach(prop => {
+                const option = document.createElement('option');
+                option.value = prop;
+                option.textContent = prop;
+                propertySelect.appendChild(option);
+            });
+        }
+        
+        // --- CALENDAR RENDERING & INTERACTION ---
+        /**
+         * Generates and renders the booking calendar.
+         */
+        function generateCalendar() {
+            calendarContainer.innerHTML = ''; // Clear previous calendar
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid';
+
+            // Empty cell for the top-left corner
+            grid.appendChild(document.createElement('div')); 
+            // Month headers
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            months.forEach(month => {
+                const monthHeader = document.createElement('div');
+                monthHeader.className = 'calendar-header';
+                monthHeader.textContent = month;
+                grid.appendChild(monthHeader);
+            });
+
+            // Iterate through each property to build its row
+            properties.forEach(prop => {
+                const propNameCell = document.createElement('div');
+                propNameCell.className = 'property-name';
+                propNameCell.textContent = prop;
+                grid.appendChild(propNameCell);
+
+                const bookingsForProp = bookings[prop] || [];
+                let dailyInfo = {}; // To store booking info per day
+
+                // Populate dailyInfo for quick lookup
+                bookingsForProp.forEach(booking => {
+                    for (let d = parseDate(booking.arrivalDate); d < parseDate(booking.departureDate); d.setDate(d.getDate() + 1)) {
+                        const dateStr = formatDate(d);
+                        if (!dailyInfo[dateStr]) dailyInfo[dateStr] = { stays: [], arrivals: [], departures: [] };
+                        dailyInfo[dateStr].stays.push(booking);
+                    }
+                    const arrivalStr = booking.arrivalDate;
+                    const departureStr = booking.departureDate;
+                    if (!dailyInfo[arrivalStr]) dailyInfo[arrivalStr] = { stays: [], arrivals: [], departures: [] };
+                    dailyInfo[arrivalStr].arrivals.push(booking);
+                    if (!dailyInfo[departureStr]) dailyInfo[departureStr] = { stays: [], arrivals: [], departures: [] };
+                    dailyInfo[departureStr].departures.push(booking);
+                });
+
+
+                // Iterate through each month for the current property
+                for (let month = 0; month < 12; month++) {
+                    const monthBubble = document.createElement('div');
+                    monthBubble.className = 'month-bubble';
+                    const daysInMonth = new Date(YEAR, month + 1, 0).getDate(); // Get days in current month
+                    
+                    // Create a cell for each day
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const date = new Date(YEAR, month, day);
+                        const dateStr = formatDate(date);
+                        const dayInfo = dailyInfo[dateStr];
+
+                        const dayCell = document.createElement('div');
+                        dayCell.dataset.date = dateStr;
+                        dayCell.dataset.property = prop;
+
+                        const tooltip = document.createElement('span');
+                        tooltip.className = 'tooltip';
+                        let cellClass = 'available';
+                        let isClickable = false;
+
+                        // Determine cell styling and tooltip content based on booking info
+                        if(dayInfo) {
+                           if(dayInfo.departures.length > 0 && dayInfo.arrivals.length > 0) {
+                                cellClass = 'changeover';
+                                isClickable = true;
+                                tooltip.textContent = `Leaving: ${dayInfo.departures.map(b => b.guestName).join(', ')}\nChecking In: ${dayInfo.arrivals.map(b => b.guestName).join(', ')}`;
+                                dayCell.dataset.bookingId = dayInfo.arrivals[0].id; // Use ID of an arriving guest for click handler
+                           } else if (dayInfo.stays.length > 0) {
+                                cellClass = 'booked';
+                                isClickable = true;
+                                const booking = dayInfo.stays[0];
+                                tooltip.textContent = `Guest: ${booking.guestName}\nStay: ${booking.arrivalDate} to ${booking.departureDate}`;
+                                dayCell.dataset.bookingId = booking.id;
+                           } else {
+                               tooltip.textContent = `Available`;
+                           }
+                        } else {
+                            tooltip.textContent = `Available`;
+                        }
+
+                        dayCell.className = `day-cell ${cellClass}`;
+                        dayCell.appendChild(tooltip);
+                        if(isClickable) {
+                            dayCell.addEventListener('click', handleDayClick);
+                        }
+                        monthBubble.appendChild(dayCell);
+                    }
+                    grid.appendChild(monthBubble);
+                }
+            });
+            calendarContainer.appendChild(grid);
+        }
+
+        /**
+         * Handles a click on a calendar day cell, opening the edit modal.
+         * @param {Event} e - The click event.
+         */
+        function handleDayClick(e) {
+            const property = e.currentTarget.dataset.property;
+            const bookingId = e.currentTarget.dataset.bookingId;
+            
+            // Find the booking by ID and property
+            const booking = (bookings[property] || []).find(b => b.id == bookingId); 
+            if(!booking) return;
+
+            // Remove existing datepickers if they exist
+            if (editArrivalPicker && typeof editArrivalPicker.remove === 'function') {
+                editArrivalPicker.remove(); editArrivalPicker = null;
+            }
+            if (editDeparturePicker && typeof editDeparturePicker.remove === 'function') {
+                editDeparturePicker.remove(); editDeparturePicker = null;
+            }
+
+            // Calculate disabled dates for the datepickers (dates already booked by other guests on this property)
+            const disabledDatesForPicker = [];
+            (bookings[property] || []).forEach(b => {
+                if (b.id !== booking.id) { // Exclude the current booking being edited
+                    for (let d = parseDate(b.arrivalDate); d < parseDate(b.departureDate); d.setDate(d.getDate() + 1)) {
+                        disabledDatesForPicker.push(d);
+                    }
+                }
+            });
+
+            // Configure and initialize datepickers for the edit modal
+            const datepickerConfig = {
+                id: 2, // Unique ID
+                minDate: new Date(YEAR, 0, 1), 
+                maxDate: new Date(YEAR, 11, 31),
+                formatter: (input, date, instance) => { input.value = formatDate(date); },
+                disabledDates: disabledDatesForPicker, // Apply disabled dates
+                onSelect: () => validateDates('edit', booking) // Re-validate on date selection
+            };
+            
+            editArrivalPicker = datepicker('#edit-arrival-date', datepickerConfig);
+            editDeparturePicker = datepicker('#edit-departure-date', { ...datepickerConfig });
+
+            // Populate the edit modal fields with current booking data
+            document.getElementById('edit-booking-id').value = booking.id;
+            document.getElementById('edit-guest-name').value = booking.guestName; 
+            document.getElementById('edit-property-name').textContent = property;
+            document.getElementById('edit-contact-info').value = booking.contactInfo || ""; 
+            document.getElementById('edit-notes').value = booking.notes || "";
+            
+            // Set initial dates for the datepickers
+            try {
+                editArrivalPicker.setDate(parseDate(booking.arrivalDate));
+                editDeparturePicker.setDate(parseDate(booking.departureDate));
+            } catch (error) {
+                console.warn('Could not set initial dates on datepickers:', error);
+                // Fallback to setting value directly if datepicker has issues
+                document.getElementById('edit-arrival-date').value = booking.arrivalDate;
+                document.getElementById('edit-departure-date').value = booking.departureDate;
+            }
+
+            validateDates('edit', booking); // Initial validation
+            editModal.classList.remove('hidden'); // Show the modal
+        }
+
+        // --- FORM LOGIC & VALIDATION ---
+        /**
+         * Handles adding a new booking via the API.
+         * @param {Event} e - The form submission event.
+         */
+        async function handleAddBooking(e) {
+            e.preventDefault();
+            const guestName = document.getElementById('guest-name').value;
+            const property = propertySelect.value;
+            const arrivalStr = document.getElementById('arrival-date').value;
+            const departureStr = document.getElementById('departure-date').value;
+            const contact = document.getElementById('contact-info').value;
+            const notes = document.getElementById('notes').value;
+            
+            if (!property) { alert("Please select a property."); return; }
+            if (!arrivalStr || !departureStr) { alert("Please select both arrival and departure dates."); return; }
+            
+            // Client-side conflict check (server-side will also validate)
+            if (checkConflict(property, arrivalStr, departureStr)) {
+                alert("Cannot add booking, conflicts with an existing stay."); return;
+            }
+
+            const newBooking = {
+                guestName: guestName, 
+                property: property,
+                arrivalDate: arrivalStr, 
+                departureDate: departureStr, 
+                contactInfo: contact, 
+                notes: notes
+            };
+            
+            try {
+                // Send new booking data to the AddBooking API
+                const response = await fetch('/api/AddBooking', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newBooking)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to add booking.');
+                }
+                // const result = await response.json(); // API might return the new ID, but we refresh all data
+
+                // Reload all data and refresh UI after successful addition
+                await initializeApp(); 
+                bookingForm.reset(); // Clear the form
+                arrivalPicker.setDate(); departurePicker.setDate(); // Clear datepickers
+                validateDates('add'); // Reset validation state
+
+            } catch (error) {
+                console.error("Error adding booking:", error);
+                alert("Failed to add booking: " + error.message);
+            }
+        }
+
+        /**
+         * Handles updating an existing booking via the API.
+         * @param {Event} e - The form submission event.
+         */
+        async function handleUpdateBooking(e) {
+            e.preventDefault();
+            const bookingId = document.getElementById('edit-booking-id').value;
+            const property = document.getElementById('edit-property-name').textContent;
+            
+            // Find the original booking for client-side conflict check
+            const currentBooking = (bookings[property] || []).find(b => b.id == bookingId);
+            if (!currentBooking) {
+                alert("Could not find the booking to update.");
+                return;
+            }
+
+            const newArrival = document.getElementById('edit-arrival-date').value;
+            const newDeparture = document.getElementById('edit-departure-date').value;
+
+            // Client-side conflict check (server-side will also validate)
+            if(checkConflict(property, newArrival, newDeparture, currentBooking)) {
+                alert("Cannot update booking, conflicts with an existing stay."); return;
+            }
+
+            const updatedBooking = {
+                id: parseInt(bookingId), // Ensure ID is an integer
+                guestName: document.getElementById('edit-guest-name').value,
+                property: property, 
+                arrivalDate: newArrival,
+                departureDate: newDeparture,
+                contactInfo: document.getElementById('edit-contact-info').value,
+                notes: document.getElementById('edit-notes').value
+            };
+            
+            try {
+                // Send updated booking data to the UpdateBooking API
+                const response = await fetch('/api/UpdateBooking', {
+                    method: 'POST', // Using POST, but PUT is more RESTful if routing is configured
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedBooking)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to update booking.');
+                }
+
+                // Reload all data and refresh UI after successful update
+                await initializeApp();
+                editModal.classList.add('hidden'); // Hide the modal
+
+            } catch (error) {
+                console.error("Error updating booking:", error);
+                alert("Failed to update booking: " + error.message);
+            }
+        }
+
+        /**
+         * Handles deleting a booking via the API.
+         */
+        async function handleDeleteBooking() {
+            if (!confirm("Are you sure you want to delete this booking?")) return;
+            const bookingId = document.getElementById('edit-booking-id').value;
+            // Property is not strictly needed for deletion if ID is unique, but good for logging/context
+            const property = document.getElementById('edit-property-name').textContent; 
+
+            try {
+                // Send delete request to the DeleteBooking API
+                const response = await fetch(`/api/DeleteBooking?id=${bookingId}`, {
+                    method: 'GET', // Using GET with query param for simplicity, DELETE is more RESTful
+                    headers: { 'Content-Type': 'application/json' },
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to delete booking.');
+                }
+
+                // Reload all data and refresh UI after successful deletion
+                await initializeApp();
+                editModal.classList.add('hidden'); // Hide the modal
+
+            } catch (error) {
+                console.error("Error deleting booking:", error);
+                alert("Failed to delete booking: " + error.message);
+            }
+        }
+
+        /**
+         * Validates dates for conflicts and enables/disables form submission buttons.
+         * @param {string} formType - 'add' or 'edit'.
+         * @param {object} [ignoredBooking=null] - The booking currently being edited (to exclude from conflict check).
+         */
+        function validateDates(formType, ignoredBooking = null) {
+            const prop = (formType === 'add') ? propertySelect.value : document.getElementById('edit-property-name').textContent;
+            const arrivalStr = (formType === 'add') ? document.getElementById('arrival-date').value : document.getElementById('edit-arrival-date').value;
+            const departureStr = (formType === 'add') ? document.getElementById('departure-date').value : document.getElementById('edit-departure-date').value;
+            const warningEl = (formType === 'add') ? conflictWarning : document.getElementById('edit-conflict-warning');
+            const buttonEl = (formType === 'add') ? addBookingBtn : saveEditBtn;
+            
+            // Disable button if essential fields are empty
+            if (!prop || !arrivalStr || !departureStr) { 
+                buttonEl.disabled = true; 
+                warningEl.classList.add('hidden'); // Hide warning if fields are just empty
+                return; 
+            }
+            
+            // Check departure date is after arrival date
+            if (parseDate(departureStr) <= parseDate(arrivalStr)) {
+                warningEl.textContent = 'Departure must be after arrival.';
+                warningEl.classList.remove('hidden'); 
+                buttonEl.disabled = true;
+            } 
+            // Check for conflicts with existing bookings
+            else if (checkConflict(prop, arrivalStr, departureStr, ignoredBooking)) {
+                warningEl.textContent = 'Dates conflict with an existing booking!';
+                warningEl.classList.remove('hidden'); 
+                buttonEl.disabled = true;
+            } 
+            // If no issues, hide warning and enable button
+            else {
+                warningEl.classList.add('hidden'); 
+                buttonEl.disabled = false;
+            }
+        }
+        
+        /**
+         * Checks for booking conflicts on the client-side.
+         * @param {string} property - The property name.
+         * @param {string} arrivalStr - New arrival date string.
+         * @param {string} departureStr - New departure date string.
+         * @param {object} [ignoredBooking=null] - Booking to ignore in conflict check (for edits).
+         * @returns {boolean} True if a conflict exists, false otherwise.
+         */
+        function checkConflict(property, arrivalStr, departureStr, ignoredBooking = null) {
+            const newArrival = parseDate(arrivalStr);
+            const newDeparture = parseDate(departureStr);
+            
+            const propBookings = bookings[property] || [];
+            for(const booking of propBookings) {
+                if(ignoredBooking && booking.id === ignoredBooking.id) {
+                    continue; // Skip the booking being currently edited
+                }
+                const existingArrival = parseDate(booking.arrivalDate); 
+                const existingDeparture = parseDate(booking.departureDate); 
+
+                // Check for overlap: (StartA < EndB) && (EndA > StartB)
+                if (newArrival < existingDeparture && newDeparture > existingArrival) {
+                    return true; // Conflict found
+                }
+            }
+            return false; // No conflict
+        }
+
+        // --- UTILITY FUNCTIONS ---
+        /**
+         * Formats a Date object into a YYYY-MM-DD string.
+         * @param {Date} date - The date object.
+         * @returns {string} Formatted date string.
+         */
+        function formatDate(date) {
+            const year = date.getFullYear();
+            let month = '' + (date.getMonth() + 1);
+            let day = '' + date.getDate();
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+            return [year, month, day].join('-');
+        }
+        
+        /**
+         * Parses a YYYY-MM-DD date string into a Date object.
+         * @param {string} dateStr - The date string.
+         * @returns {Date} The parsed date object.
+         */
+        function parseDate(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            // Set hour to 12 to avoid timezone issues with Date objects
+            return new Date(year, month - 1, day, 12); 
+        }
+
+    </script>
+
+</body>
+</html>

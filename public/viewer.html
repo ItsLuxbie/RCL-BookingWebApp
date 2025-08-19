@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Occupation Manager (Viewer)</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Custom Styles & Softer Color Palette */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Very light gray */
+            color: #475569; /* Slate-600 for base text */
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        /* Define custom pastel colors */
+        :root {
+            --sage-green: #86efac;  /* Green-300 */
+            --secondary-accent: #67e8f9; /* Cyan-300 */
+            --booked: #fecaca;         /* Red-200 */
+            --changeover: #fef08a;     /* Yellow-200 */
+            --available: #dcfce7;       /* Green-100 */
+        }
+        
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: 160px repeat(12, 1fr);
+            gap: 8px;
+        }
+        .calendar-header {
+            background-color: #f1f5f9; /* Slate-100 */
+            padding: 8px;
+            text-align: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border-radius: 6px;
+            color: #475569;
+        }
+        .property-name {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            font-weight: 600;
+            background-color: #f8fafc;
+            padding: 12px 8px;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        .month-bubble {
+            background-color: #f1f5f9; /* Slate-100 */
+            padding: 4px;
+            border-radius: 8px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(20px, 1fr));
+            gap: 2px;
+        }
+        .day-cell {
+            background-color: #ffffff;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            border-radius: 4px;
+        }
+        .day-cell.booked, .day-cell.changeover {
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .day-cell.booked {
+            background-color: var(--booked);
+        }
+         .day-cell.changeover {
+            background-color: var(--changeover);
+        }
+        .day-cell.booked:hover, .day-cell.changeover:hover {
+            transform: scale(1.1);
+            z-index: 15;
+            border: 2px solid var(--sage-green);
+        }
+        .day-cell.available {
+             background-color: var(--available);
+        }
+        .day-cell .tooltip {
+            visibility: hidden;
+            width: max-content;
+            max-width: 250px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 20;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: pre-wrap;
+            font-size: 0.85rem;
+        }
+        .day-cell:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- CLIENT-SIDE ROLE CHECK: Redirects to login if not authenticated as 'viewer' or 'master' -->
+    <script>
+        if (sessionStorage.getItem('accessRole') !== 'viewer' && sessionStorage.getItem('accessRole') !== 'master') {
+            window.location.href = '/'; 
+        }
+    </script>
+
+    <div class="max-w-screen-xl mx-auto">
+        <header class="pb-6 border-b border-slate-200 mb-8">
+            <div class="flex items-baseline gap-4">
+                 <h1 class="text-3xl font-bold text-slate-700">Occupation Manager</h1>
+                 <span class="text-sm font-semibold text-cyan-700 bg-cyan-100 px-2 py-1 rounded-full">Viewer</span>
+            </div>
+        </header>
+
+        <!-- Initial Load Section - HIDDEN, logic moved to main app setup -->
+        <div id="initial-load-section" class="hidden"></div> 
+
+        <!-- Main Content (hidden until data is loaded) -->
+        <main id="main-content" class="hidden">
+            
+             <!-- Action Bar -->
+            <div class="bg-white p-4 rounded-lg shadow-sm mb-8 flex justify-end items-center gap-4">
+                 <button id="refresh-btn" class="bg-teal-300 text-teal-800 font-bold py-2 px-4 rounded-lg hover:bg-teal-400 hover:text-white transition duration-300 shadow-md">
+                    Refresh Calendar
+                </button>
+                <button id="logout-btn" class="bg-rose-400 text-white font-bold py-2 px-4 rounded-lg hover:bg-rose-500 transition duration-300 shadow-md">
+                    Logout
+                </button>
+            </div>
+
+            <!-- Calendar View -->
+            <div class="bg-white p-2 rounded-lg shadow-sm overflow-x-auto">
+                <div class="flex justify-between items-center mb-4 px-4 pt-4">
+                    <h2 class="text-xl font-bold text-slate-700">2025 Booking Calendar</h2>
+                </div>
+                <div id="calendar-container">
+                    <p class="text-center p-8">No data loaded.</p>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Info Modal -->
+        <div id="info-modal" class="fixed inset-0 bg-slate-800 bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+            <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-slate-800">Booking Details</h3>
+                    <button id="close-info-btn" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-500">Guest</label>
+                        <p id="info-guest-name" class="mt-1 text-lg font-semibold text-slate-700"></p>
+                    </div>
+                     <div>
+                        <label class="block text-sm font-medium text-slate-500">Property</label>
+                        <p id="info-property-name" class="mt-1 text-lg font-semibold text-slate-700"></p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                           <label class="block text-sm font-medium text-slate-500">Arrival</label>
+                           <p id="info-arrival-date" class="mt-1 text-lg font-semibold text-slate-700"></p>
+                        </div>
+                        <div>
+                           <label class="block text-sm font-medium text-slate-500">Departure</label>
+                           <p id="info-departure-date" class="mt-1 text-lg font-semibold text-slate-700"></p>
+                        </div>
+                    </div>
+                     <div id="info-notes-container" class="hidden">
+                        <label class="block text-sm font-medium text-slate-500">Notes</label>
+                        <p id="info-notes" class="mt-1 text-base text-slate-600 bg-slate-50 p-2 rounded-md whitespace-pre-wrap"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- GLOBALS ---
+        let bookings = {}; 
+        let properties = [];
+        const YEAR = 2025;
+        
+        // --- DOM ELEMENTS ---
+        const initialLoadSection = document.getElementById('initial-load-section'); // Now hidden
+        const mainContent = document.getElementById('main-content');
+        const calendarContainer = document.getElementById('calendar-container');
+        const infoModal = document.getElementById('info-modal');
+        const closeInfoBtn = document.getElementById('close-info-btn');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        
+        // --- EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', initializeApp);
+        closeInfoBtn.addEventListener('click', () => infoModal.classList.add('hidden'));
+        refreshBtn.addEventListener('click', initializeApp); // Re-run init to refresh data
+        logoutBtn.addEventListener('click', handleLogout);
+
+
+        /**
+         * Initializes the application by loading data and setting up UI components.
+         */
+        async function initializeApp() {
+            await loadDataFromDatabase(); // Load data from Azure SQL via Functions
+            generateCalendar();
+            mainContent.classList.remove('hidden'); // Show main content once data is loaded
+        }
+
+        /**
+         * Clears session storage and redirects to the login page.
+         */
+        function handleLogout() {
+            sessionStorage.removeItem('accessRole'); // Clear the stored role
+            window.location.href = '/'; // Redirect to login page
+        }
+
+        // --- DATABASE & DATA HANDLING ---
+        /**
+         * Loads properties and bookings data from the Azure Functions API.
+         */
+        async function loadDataFromDatabase() {
+            try {
+                // Fetch properties
+                const propertiesRes = await fetch('/api/GetProperties');
+                if (!propertiesRes.ok) {
+                    const errorText = await propertiesRes.text();
+                    throw new Error(`Failed to fetch properties: ${propertiesRes.status} ${propertiesRes.statusText} - ${errorText}`);
+                }
+                properties = await propertiesRes.json();
+
+                // Fetch bookings
+                const bookingsRes = await fetch('/api/GetBookings');
+                if (!bookingsRes.ok) {
+                    const errorText = await bookingsRes.text();
+                    throw new Error(`Failed to fetch bookings: ${bookingsRes.status} ${bookingsRes.statusText} - ${errorText}`);
+                }
+                const flatBookings = await bookingsRes.json();
+                
+                // Convert flat list of bookings into a property-keyed object for easier lookup
+                bookings = {};
+                flatBookings.forEach(b => {
+                    if (!bookings[b.property]) bookings[b.property] = [];
+                    bookings[b.property].push(b);
+                });
+
+                console.log("Viewer data loaded from database successfully.");
+            } catch (error) {
+                console.error("Error loading viewer data from database:", error);
+                alert("Could not load data from database. Please check your connection or try again later. Details: " + error.message);
+                mainContent.classList.add('hidden'); // Keep content hidden if load fails
+            }
+        }
+        
+        // --- CALENDAR RENDERING & INTERACTION ---
+        /**
+         * Generates and renders the booking calendar.
+         */
+        function generateCalendar() {
+            calendarContainer.innerHTML = ''; // Clear previous calendar
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid';
+
+            // Empty cell for the top-left corner
+            grid.appendChild(document.createElement('div')); 
+            // Month headers
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            months.forEach(month => {
+                const monthHeader = document.createElement('div');
+                monthHeader.className = 'calendar-header';
+                monthHeader.textContent = month;
+                grid.appendChild(monthHeader);
+            });
+            
+            // Iterate through each property to build its row
+            properties.forEach(prop => {
+                const propNameCell = document.createElement('div');
+                propNameCell.className = 'property-name';
+                propNameCell.textContent = prop;
+                grid.appendChild(propNameCell);
+
+                const bookingsForProp = bookings[prop] || [];
+                let dailyInfo = {}; // To store booking info per day
+
+                // Populate dailyInfo for quick lookup
+                bookingsForProp.forEach(booking => {
+                    for (let d = parseDate(booking.arrivalDate); d < parseDate(booking.departureDate); d.setDate(d.getDate() + 1)) {
+                        const dateStr = formatDate(d);
+                        if (!dailyInfo[dateStr]) dailyInfo[dateStr] = { stays: [], arrivals: [], departures: [] };
+                        dailyInfo[dateStr].stays.push(booking);
+                    }
+                    const arrivalStr = booking.arrivalDate;
+                    const departureStr = booking.departureDate;
+                    if (!dailyInfo[arrivalStr]) dailyInfo[arrivalStr] = { stays: [], arrivals: [], departures: [] };
+                    dailyInfo[arrivalStr].arrivals.push(booking);
+                    if (!dailyInfo[departureStr]) dailyInfo[departureStr] = { stays: [], arrivals: [], departures: [] };
+                    dailyInfo[departureStr].departures.push(booking);
+                });
+
+                // Iterate through each month for the current property
+                for (let month = 0; month < 12; month++) {
+                    const monthBubble = document.createElement('div');
+                    monthBubble.className = 'month-bubble';
+                    const daysInMonth = new Date(YEAR, month + 1, 0).getDate(); // Get days in current month
+                    
+                    // Create a cell for each day
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const date = new Date(YEAR, month, day);
+                        const dateStr = formatDate(date);
+                        const dayInfo = dailyInfo[dateStr];
+
+                        const dayCell = document.createElement('div');
+                        dayCell.dataset.date = dateStr;
+                        dayCell.dataset.property = prop;
+
+                        const tooltip = document.createElement('span');
+                        tooltip.className = 'tooltip';
+                        let cellClass = 'available';
+                        let isClickable = false;
+
+                        // Determine cell styling and tooltip content based on booking info
+                        if(dayInfo) {
+                           if(dayInfo.departures.length > 0 && dayInfo.arrivals.length > 0) {
+                                cellClass = 'changeover';
+                                isClickable = true;
+                                tooltip.textContent = `Leaving: ${dayInfo.departures.map(b => b.guestName).join(', ')}\nChecking In: ${dayInfo.arrivals.map(b => b.guestName).join(', ')}`;
+                                dayCell.dataset.bookingId = dayInfo.arrivals[0].id;
+                           } else if (dayInfo.stays.length > 0) {
+                                cellClass = 'booked';
+                                isClickable = true;
+                                const booking = dayInfo.stays[0];
+                                tooltip.textContent = `Guest: ${booking.guestName}\nStay: ${booking.arrivalDate} to ${booking.departureDate}`;
+                                dayCell.dataset.bookingId = booking.id;
+                           } else {
+                               tooltip.textContent = `Available`;
+                           }
+                        } else {
+                            tooltip.textContent = `Available`;
+                        }
+
+                        dayCell.className = `day-cell ${cellClass}`;
+                        dayCell.appendChild(tooltip);
+                        if (isClickable) {
+                            dayCell.addEventListener('click', handleDayClick);
+                        }
+                        monthBubble.appendChild(dayCell);
+                    }
+                    grid.appendChild(monthBubble);
+                }
+            });
+            calendarContainer.appendChild(grid);
+        }
+
+        /**
+         * Handles a click on a calendar day cell, opening the info modal.
+         * @param {Event} e - The click event.
+         */
+        function handleDayClick(e) {
+            const property = e.currentTarget.dataset.property;
+            const bookingId = e.currentTarget.dataset.bookingId;
+            
+            const booking = (bookings[property] || []).find(b => b.id == bookingId);
+            if(!booking) return;
+
+            // Populate and show info modal
+            document.getElementById('info-guest-name').textContent = booking.guestName;
+            document.getElementById('info-property-name').textContent = property;
+            document.getElementById('info-arrival-date').textContent = booking.arrivalDate;
+            document.getElementById('info-departure-date').textContent = booking.departureDate;
+            
+            const notesContainer = document.getElementById('info-notes-container');
+            const notesEl = document.getElementById('info-notes');
+            if (booking.notes) {
+                notesEl.textContent = booking.notes;
+                notesContainer.classList.remove('hidden');
+            } else {
+                notesContainer.classList.add('hidden');
+            }
+            
+            infoModal.classList.remove('hidden'); // Show the modal
+        }
+
+        // --- UTILITY FUNCTIONS ---
+        /**
+         * Formats a Date object into a YYYY-MM-DD string.
+         * @param {Date} date - The date object.
+         * @returns {string} Formatted date string.
+         */
+        function formatDate(date) {
+            const year = date.getFullYear();
+            let month = '' + (date.getMonth() + 1);
+            let day = '' + date.getDate();
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+            return [year, month, day].join('-');
+        }
+        
+        /**
+         * Parses a YYYY-MM-DD date string into a Date object.
+         * @param {string} dateStr - The date string.
+         * @returns {Date} The parsed date object.
+         */
+        function parseDate(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            // Set hour to 12 to avoid timezone issues with Date objects
+            return new Date(year, month - 1, day, 12);
+        }
+
+    </script>
+
+</body>
+</html>

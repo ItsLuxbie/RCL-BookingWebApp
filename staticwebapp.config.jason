@@ -1,0 +1,65 @@
+{
+  "routes": [
+    {
+      "route": "/",
+      "serve": "/index.html",
+      "statusCode": 200
+    },
+    {
+      "route": "/master.html",
+      "serve": "/master.html",
+      "statusCode": 200
+    },
+    {
+      "route": "/viewer.html",
+      "serve": "/viewer.html",
+      "statusCode": 200
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "statusCode": 200
+  },
+  "auth": {
+    "identityProviders": {
+      "azureActiveDirectory": {
+        "enabled": false
+      },
+      "github": {
+        "enabled": false
+      },
+      "google": {
+        "enabled": false
+      },
+      "twitter": {
+        "enabled": false
+      },
+      "facebook": {
+        "enabled": false
+      },
+      "apple": {
+        "enabled": false
+      }
+    }
+  },
+  "responseOverrides": {
+    "401": {
+      "rewrite": "/index.html",
+      "statusCode": 200
+    },
+    "403": {
+      "rewrite": "/index.html",
+      "statusCode": 200
+    },
+    "404": {
+      "rewrite": "/index.html",
+      "statusCode": 200
+    }
+  },
+  "globalHeaders": {
+    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0"
+  },
+  "mimeTypes": {
+    ".json": "application/json"
+  }
+}
